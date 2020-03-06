@@ -70,16 +70,6 @@ const observeProperty = (obj: object, key: string, value: any): void => {
 }
 
 /**
- * 解决
- *  Element implicitly has an 'any' type because expression 
- *  of type 'string' can't be used to index type '{}'
- * 问题
- */
-interface IParams {
-  [propName: string]: any
-}
-
-/**
  * 数据的观察者，监听数据的变化
  */
 class Observer {
@@ -98,6 +88,6 @@ class Observer {
    * 遍历对象各属性，生成各属性的 getter/setter
    */
   walk = (obj: object): void => {
-    Object.keys(obj).forEach(key => observeProperty(obj, key, (<IParams>obj)[key]))
+    Object.keys(obj).forEach(key => observeProperty(obj, key, obj[key]))
   }
 }

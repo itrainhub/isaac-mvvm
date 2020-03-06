@@ -9,7 +9,7 @@ let uid: number = 0
  * set 数据的时候，通知订阅者
  */
 export default class Dep {
-  static target: Watcher
+  static target: Watcher | null
   id: number
   subs: Array<Watcher>
 
