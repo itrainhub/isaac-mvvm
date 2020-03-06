@@ -1,3 +1,14 @@
-import MVVM from '../lib/index'
+import { observe } from '../lib'
 
-new MVVM()
+const data = {
+  msg: 'hello',
+  name: {
+    first: '二',
+    middle: '小',
+    last: '王'
+  }
+}
+
+observe(data)
+
+console.log(data)
