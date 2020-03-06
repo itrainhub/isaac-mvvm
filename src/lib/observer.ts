@@ -1,4 +1,5 @@
 import { isObject } from './util'
+import Dep from './dep'
 
 /**
  * 劫持数据的方法
@@ -17,6 +18,7 @@ export const observe = (data: object | Array<any>): Observer | void => {
  * @param value 属性值
  */
 const observeProperty = (obj: object, key: string, value: any): void => {
+  const dep = new Dep()
   // 获取对象 obj 属性 key 的描述信息
   const property = Object.getOwnPropertyDescriptor(obj, key)
   // 不允许配置，则结束
@@ -37,6 +39,14 @@ const observeProperty = (obj: object, key: string, value: any): void => {
     get() {
       const val = getter ? getter.call(obj) : value
 
+      // get，收集订阅者
+      if (Dep.target) {
+        dep.depend()
+        if (childOb) {
+          childOb.dep.depend()
+        }
+      }
+
       return val
     },
     set(newValue: any) {
@@ -49,6 +59,12 @@ const observeProperty = (obj: object, key: string, value: any): void => {
         setter.call(obj, newValue)
       else
         value = newValue
+      
+      // 对更新的值继续 observe
+      childOb = observe(newValue)
+
+      // set，通知订阅者
+      dep.notify()
     }
   })
 }
@@ -67,10 +83,13 @@ interface IParams {
  * 数据的观察者，监听数据的变化
  */
 class Observer {
+  // 观察的数据，对象或数组
   value: object | Array<any>
+  dep: Dep
 
   constructor(value: object | Array<any>) {
     this.value = value
+    this.dep = new Dep()
 
     this.walk(value)
   }
