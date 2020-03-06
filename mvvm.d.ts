@@ -1,12 +1,27 @@
 type Watcher = {
-  addDep: (dep: Dep) => void,
-  update: () => void
+  vm: ViewModel,
+  cb: Function,
+  depIds: object,
+  getter: Function | void,
+  value: any,
+  get: Function,
+  addDep: Function,
+  update: Function,
+  parseGetter: Function,
 }
 
 type Dep = {
   id: number,
   subs: Array<Watcher>,
-  addSub: (sub: Watcher) => void,
-  removeSub: (sub: Watcher) => void,
-  depend: () => void
+  addSub: Function,
+  removeSub: Function,
+  depend: Function,
+  notify: Function
+}
+
+type ViewModel = {
+  $options: {
+    data: object,
+    methods: object
+  }
 }
