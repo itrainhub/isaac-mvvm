@@ -19,3 +19,14 @@ export const remove = (arr: Array<any>, item: any): Array<any> | void => {
     }
   }
 }
+
+/**
+ * 转换字符串首字母为大写，剩下为小写
+ * @param str 待转换字符串
+ */
+export const capitalize = (str: string): string => {
+  if (str.length === 0) return ''
+  const result = str.toLowerCase().split('')
+  result[0] = result[0].toUpperCase()
+  return result.join('')
+}
