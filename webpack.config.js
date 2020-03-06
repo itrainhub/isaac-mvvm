@@ -11,9 +11,13 @@ module.exports = {
     rules: [
       {
         test: /\.ts$/,
-        use: 'ts-loader'
+        use: 'ts-loader',
+        exclude: path.resolve(__dirname, 'node_modules')
       }
     ]
+  },
+  resolve: {
+    extensions: ['.ts', '.js']
   },
   plugins: [
     new HtmlWebpackPlugin({
