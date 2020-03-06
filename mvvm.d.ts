@@ -1,5 +1,6 @@
 type Watcher = {
-  addDep: (dep: Dep) => void
+  addDep: (dep: Dep) => void,
+  update: () => void
 }
 
 type Dep = {
