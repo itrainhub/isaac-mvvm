@@ -1,4 +1,4 @@
-import { remove } from './util'
+import { remove } from '../util'
 
 // 全局编号
 let uid: number = 0

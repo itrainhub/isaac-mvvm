@@ -1,5 +1,5 @@
 import { capitalize } from "../util"
-import Watcher from "../watcher"
+import Watcher from "../core/watcher"
 
 export default {
   /**
