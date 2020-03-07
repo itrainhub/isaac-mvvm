@@ -1,1 +1,1 @@
-export { observe } from './observer'
+export * from './observer'
