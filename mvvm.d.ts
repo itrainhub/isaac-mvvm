@@ -19,9 +19,13 @@ type Dep = {
   notify: Function
 }
 
+interface Options {
+  el: Element | string,
+  data?: object,
+  methods?: object
+}
+
 type ViewModel = {
-  $options: {
-    data: object,
-    methods: object
-  }
+  $options: Options,
+  $data: object
 }
