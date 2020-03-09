@@ -1,16 +1,28 @@
-type Watcher = {
-  vm: ViewModel,
-  cb: Function,
-  depIds: object,
-  getter: Function | void,
-  value: any,
-  get: Function,
-  addDep: Function,
-  update: Function,
-  parseGetter: Function,
+interface Options {
+  el: Element | string,
+  data: object,
+  methods: object
 }
 
-type Dep = {
+interface ViewModel {
+  $options: Options,
+  $el: Element | null,
+  $data: object
+}
+
+interface Watcher {
+  vm: ViewModel,
+  expression: string,
+  callback: Function,
+  depIds: object,
+  value: any,
+  get: Function,
+  getValue: Function,
+  addDep: Function,
+  update: Function
+}
+
+interface Dep {
   id: number,
   subs: Array<Watcher>,
   addSub: Function,
@@ -19,13 +31,9 @@ type Dep = {
   notify: Function
 }
 
-interface Options {
-  el: Element | string,
-  data?: object,
-  methods?: object
-}
-
-type ViewModel = {
-  $options: Options,
-  $data: object
+interface Parser {
+  $vm: ViewModel,
+  parseElement: (el: Node) => void,
+  parseAttrs: (el: Element) => void,
+  parseText: (node: Text) => void
 }

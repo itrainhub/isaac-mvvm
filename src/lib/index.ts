@@ -24,19 +24,47 @@ const defaultOptions: Options = {
   methods: {}
 }
 
+/**
+ * ViewModel
+ */
 export default class ViewModel {
   $options: Options
   $data: object
-  constructor(options: Options = defaultOptions) {
+  $el: Element | null
+  constructor(options: Options) {
+    options = Object.assign({}, defaultOptions, options)
+    const { el, data } = options
     this.$options = options
-    const data = this.$data = options.data || {}
+    this.$el = typeof el === 'string' ? document.querySelector(el) : el
+    this.$data = data
     // 将 data 中的数据挂载到当前 vm 对象下
     Object.keys(data).forEach(key => {
       _injectData(this, key)
     })
     // 劫持数据
-    observe(data)
+    observe(this.$data)
+    // 如果没有根元素，则不解析节点
+    if (this.$el) { 
+      this.init()
+    }
+  }
+
+  /**
+   * 初始化
+   */
+  init(): void {
     // 解析
-    new Parser(options.el || document.body, this)
+    new Parser(this)
+  }
+
+  /**
+   * 手动挂载元素节点
+   * @param el 根元素
+   */
+  $mount(el: Element | string): void {
+    this.$el = typeof el === 'string' ? document.querySelector(el) : el
+    if (this.$el) {
+      this.init()
+    }
   }
 }

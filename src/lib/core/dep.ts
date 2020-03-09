@@ -9,7 +9,7 @@ let uid: number = 0
  * set 数据的时候，通知订阅者
  */
 export default class Dep {
-  static target: Watcher | null
+  static target: Watcher | null = null
   id: number
   subs: Array<Watcher>
 
@@ -22,7 +22,7 @@ export default class Dep {
    * 添加订阅者
    * @param sub 订阅者对象
    */
-  addSub = (sub: Watcher): void => {
+  addSub(sub: Watcher): void {
     this.subs.push(sub)
   }
 
@@ -30,21 +30,21 @@ export default class Dep {
    * 删除订阅者
    * @param sub 订阅者对象
    */
-  removeSub = (sub: Watcher): void => {
+  removeSub(sub: Watcher): void {
     remove(this.subs, sub)
   }
 
   /**
    * 收集订阅者
    */
-  depend = (): void => {
+  depend(): void {
     Dep.target && Dep.target.addDep(this)
   }
 
   /**
    * 通知订阅者
    */
-  notify = (): void => {
+  notify(): void {
     this.subs.forEach(sub => sub.update())
   }
 }

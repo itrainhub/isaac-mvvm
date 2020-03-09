@@ -30,3 +30,17 @@ export const capitalize = (str: string): string => {
   result[0] = result[0].toUpperCase()
   return result.join('')
 }
+
+/**
+ * 判断是否为空：null、undefined、'', [], {}
+ * @param param 待判断是否为空的参数
+ */
+export const isEmpty = (param: any): boolean => {
+  return (
+    param === null
+    || typeof param === 'undefined'
+    || (typeof param === 'string' && param.trim().length === 0)
+    || (Array.isArray(param) && param.length === 0)
+    || (typeof param === 'object' && Object.getOwnPropertyNames(param).length === 0)
+  )
+}
