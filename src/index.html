@@ -7,9 +7,16 @@
 </head>
 <body>
   测试
-  <div id="app">
+  <div id="root">
     {{ msg }}
-    <button x-on:click="handleClick">按钮</button>
+    <br>
+    {{ success }}
+    <br>
+    <input type="text" x-model="msg" />
+    <div>
+      学生姓名：{{ stu.name.middle }} {{ stu.name.first }}，年龄：{{ stu.age }}
+    </div>
+    <button x-on:click="handle">按钮</button>
   </div>
 </body>
 </html>

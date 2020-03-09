@@ -1,28 +1,22 @@
-import ViewModel from "../lib/view-model";
-
-// import { observe } from '../lib'
-
-// const data = {
-//   msg: 'hello',
-//   name: {
-//     first: '二',
-//     middle: '小',
-//     last: '王'
-//   }
-// }
-
-// observe(data)
-
-// console.log(data)
+import ViewModel from "../lib"
 
 const vm = new ViewModel({
-  el: '#app',
+  el: '#root',
   data: {
-    msg: 'hello world'
+    msg: 'hello',
+    success: 'congratulations!!!',
+    stu: {
+      name: {
+        first: '二',
+        middle: '小',
+        last: '王'
+      },
+      age: 18
+    }
   },
   methods: {
-    handleClick() {
-      (<any>this).msg = 'changed again'
+    handle() {
+      this['msg'] = 'changed'
     }
   }
 })
