@@ -6,7 +6,7 @@ import DirectiveHandler from "./directive-handler"
  */
 const genFragment = (el: Element): DocumentFragment => {
   const fragment = new DocumentFragment()
-  let child
+  let child: Node | null = null
   while(child = el.firstChild) {
     fragment.appendChild(child)
   }
@@ -38,17 +38,15 @@ const isDirective = (param: string): boolean => {
  * 简单的指令及'{{ }}'插值表达式解析
  */
 export default class Parser {
-  $el: Element | null
   $vm: ViewModel
 
-  constructor(el: Element | string, vm: ViewModel) {
-    this.$el = isElement(el) ? <Element>el : document.querySelector(<string>el)
+  constructor(vm: ViewModel) {
     this.$vm = vm
-    if (this.$el) {
+    if (vm.$el) {
       // 利用文档碎片处理
-      const fragment = genFragment(this.$el)
+      const fragment = genFragment(vm.$el)
       this.parseElement(fragment)
-      this.$el.appendChild(fragment)
+      vm.$el.appendChild(fragment)
     }
   }
 
@@ -57,19 +55,15 @@ export default class Parser {
    * @param el 节点，主要是元素节点
    */
   parseElement(el: Node) {
-    // 遍历当前el元素节点各子节点
+    // 解析 el 节点的属性
+    this.parseAttrs(<Element>el)
+    // 解析 el 节点的所有孩子节点
     Array.from(el.childNodes).forEach(node => {
-      if (isElement(node)) { // 子节点为元素节点
-        this.parseAttrs(<Element>node)
-        if (node.childNodes.length) { // 还有孩子节点
-          this.parseElement(node)
-        }
-      } else if (isText(node)) { // 子节点为文本节点
-        const txt = node.textContent
-        const reg = /\{\{((?:.|\n)+?)\}\}/
-        if (txt && reg.test(txt)) { // 测试文本中是否有 {{ }} 插值表达式
-          this.parseText(<Text>node, RegExp.$1.trim())
-        }
+      // 判断是元素节点还是文本节点
+      if (isElement(node)) { // 元素节点，继续递归解析
+        this.parseElement(node)
+      } else if (isText(node)) { // 文本节点
+        this.parseText(<Text>node)
       }
     })
   }
@@ -79,6 +73,7 @@ export default class Parser {
    * @param el 节点
    */
   parseAttrs(el: Element) {
+    if (!el.attributes) return
     // 遍历节点的所有属性
     Array.from(el.attributes).forEach(attr => {
       // 属性名
@@ -93,6 +88,8 @@ export default class Parser {
         } else { // 普通指令
           DirectiveHandler.dispatch(el, this.$vm, directive, expression)
         }
+        // 删除指令属性
+        el.removeAttribute(name)
       }
     })
   }
@@ -100,7 +97,21 @@ export default class Parser {
   /**
    * 解析文本节点
    */
-  parseText(node: Text, expression: string) {
-    DirectiveHandler.dispatch(node, this.$vm, 'text', expression)
+  parseText(node: Text) {
+    // 获取文本值
+    const text = node.textContent || ''
+    // 插值表达式的正则
+    const reg = /\{\{((?:.|\n)*?)\}\}/g
+
+    // 将文本按插值语法分割
+    const plainTexts = text.split(/\{\{(?:.|\n)*?\}\}/)
+    const mustaches = []
+    const original = {plainTexts, mustaches}
+    let index: number = 0
+    let match: Array<string> | null
+    // 循环处理每个插值表达式
+    while (match = reg.exec(text)) {
+      DirectiveHandler.processMustache(node, original, this.$vm, match[1].trim(), index++)
+    }
   }
 }
