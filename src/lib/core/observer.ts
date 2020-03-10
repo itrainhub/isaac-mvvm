@@ -1,5 +1,6 @@
-import { isObject } from '../util'
+import { isObject, def } from '../util'
 import Dep from './dep'
+import { arrayMethods } from './array'
 
 /**
  * 劫持数据的方法
@@ -30,18 +31,24 @@ const observeProperty = (obj: object, key: string, value: any): void => {
   // 创建 Dep 对象
   const dep = new Dep()
   // 属性值也可能为对象或数组，继续劫持
-  observe(value)
+  let childOb = observe(value)
   // 定义属性，重写 getter/setter
   Object.defineProperty(obj, key, {
     configurable: true,
     enumerable: true,
     get() {
-      // getter，收集订阅者
-      if (Dep.target) {
-        dep.depend()
-      }
       // 有预定义的 getter，则调用 getter 方法获得返回值，否则使用已有属性值
       const val = getter ? getter.call(obj) : value
+      // 收集订阅者
+      if (Dep.target) {
+        dep.depend()
+        if (childOb) {
+          childOb.dep.depend()
+          if (Array.isArray(val)) {
+            dependArray(val)
+          }
+        }
+      }
       return val
     },
     set(newValue: any) {
@@ -55,11 +62,20 @@ const observeProperty = (obj: object, key: string, value: any): void => {
       else
         value = newValue
       // 对更新的值继续 observe
-      observe(newValue)
+      childOb = observe(newValue)
       // setter，通知订阅者更新
       dep.notify()
     }
   })
+}
+
+const dependArray = (value: any[]): void => {
+  for (let e: any, i = 0, l = value.length; i < l; i++) {
+    e = value[i]
+    e && e.__ob__ && e.__ob__.dep.depend()
+    if (Array.isArray(e))
+      dependArray(e)
+  }
 }
 
 /**
@@ -68,10 +84,19 @@ const observeProperty = (obj: object, key: string, value: any): void => {
 class Observer {
   // 观察的数据，对象或数组
   value: object | Array<any>
+  // Dep 对象：订阅者收集器
+  dep: Dep
 
   constructor(value: object | Array<any>) {
     this.value = value
-    this.walk(value)
+    this.dep = new Dep()
+    def(value, '__ob__', this)
+    if (Array.isArray(value)) {
+      Object.setPrototypeOf(value, arrayMethods)
+      this.observeArray(value)
+    } else {
+      this.walk(value)
+    }
   }
 
   /**
@@ -79,5 +104,15 @@ class Observer {
    */
   walk(obj: object): void {
     Object.keys(obj).forEach(key => observeProperty(obj, key, obj[key]))
+  }
+
+  /**
+   * 劫持数组中每个元素
+   * @param arr 数组对象
+   */
+  observeArray(arr: any[]): void {
+    for (let i = 0, l = arr.length; i < l; i++) {
+      observe(arr[i])
+    }
   }
 }

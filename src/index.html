@@ -17,6 +17,10 @@
       学生姓名：{{ stu.name.middle }} {{ stu.name.first }}，年龄：{{ stu.age }}
     </div>
     <button x-on:click="handle">按钮</button>
+    <div>
+      数组长度：{{ hobbies.length }}
+      <button x-on:click="handleAddData">添加元素</button>
+    </div>
   </div>
 </body>
 </html>

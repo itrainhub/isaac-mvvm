@@ -26,9 +26,7 @@ export const remove = (arr: Array<any>, item: any): Array<any> | void => {
  */
 export const capitalize = (str: string): string => {
   if (str.length === 0) return ''
-  const result = str.toLowerCase().split('')
-  result[0] = result[0].toUpperCase()
-  return result.join('')
+  return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
 /**
@@ -43,4 +41,22 @@ export const isEmpty = (param: any): boolean => {
     || (Array.isArray(param) && param.length === 0)
     || (typeof param === 'object' && Object.getOwnPropertyNames(param).length === 0)
   )
+}
+
+/**
+ * 对象深克隆
+ * @param data 待克隆对象
+ */
+export const cloneDeep = (data: any): any => {
+  if (!isObject(data))
+    return data
+  
+  let result: object = Array.isArray(data) ? [] : {}
+  
+  for (let key in data) {
+    const curr = data[key]
+    result[key] = isObject(curr) ? cloneDeep(curr) : curr
+  }
+
+  return result
 }
