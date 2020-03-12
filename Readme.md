@@ -1024,7 +1024,7 @@ methods: {
 
 运行效果：
 
-![数组劫持](/Users/isaac/Desktop/isaac-mvvm/_imgs/observe_array.gif)
+![数组劫持](./_imgs/observe_array.gif)
 
 初始数组的长度能够正确获得，但当点击添加兴趣爱好时，视图并未更新。
 
@@ -1069,7 +1069,7 @@ handleAddHobby() {
 
 运行效果：
 
-![修改属性本身](/Users/isaac/Desktop/isaac-mvvm/_imgs/observe_arr_prop.gif)
+![修改属性本身](./_imgs/observe_arr_prop.gif)
 
 视图更新了，数字由之前数组的长度 2 更新为字符串的长度 19，由此可见当前确实是当修改 `stu.hobbies` 属性本身时才会更新视图，那如何使得修改 stu.hobbies 属性值(即数组)时也能更新视图呢？
 
@@ -1107,7 +1107,7 @@ Object.defineProperty(obj, key, {
 
 再次运行，效果：
 
-![完善效果](/Users/isaac/Desktop/isaac-mvvm/_imgs/observer_array_success.gif)
+![完善效果](./_imgs/observer_array_success.gif)
 
 现在看，当调用数组的 `push` 方法添加元素时，就能够拦截到数组的更新并通知更新视图了。
 
