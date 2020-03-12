@@ -2,7 +2,11 @@
 
 ## 概述
 
-使用 Vue 有一段时间了，其响应式数据处理在很大程度上提高了项目编码效率，一直没有好好研究过其原理，趁最近疫情宅家的时间，研究整理并自定义了一个简单的 MVVM 库，算是加深对它的的理解吧。本库借鉴 Vue.js 2.x 版本相关原理，需要一定的 JavaScript 基础，文中如果遇到不理解的地方可自行查阅相关文档。
+使用 Vue 有一段时间了，其响应式数据处理在很大程度上提高了项目编码效率，一直没有好好研究过其原理，趁最近疫情宅家的时间，研究整理并自定义了一个简单的 MVVM 库，算是加深对它的的理解吧。
+
+本库借鉴 Vue.js 2.x 版本相关原理，需要一定的 JavaScript 基础，文中如果遇到不理解的地方可自行查阅相关文档。
+
+本文代码片段仅是为作说明的部分代码，并不是完整代码，请 `clone` 本仓库到本地后对照参考。
 
 ## 准备
 
@@ -15,9 +19,6 @@ Vue 采用数据劫持加发布-订阅模式（有说观察者模式-有待细�
 `Object.defineProperty()` 用于在一个对象上定义新的属性，或是修改已有属性，它是 ES5 中无法被 shim 的一个特性，所以不能在 IE9 之前的浏览器中使用。先看一个示例：
 
 ```js
-// 判断 data 是否为对象
-const isObject = data => (data !== null && typeof data === 'object')
-
 // 劫持数据方法
 const observe = data => {
   if (!isObject(data)) return
@@ -120,7 +121,9 @@ Model 更新时要自动更新 View，重点是需要知道数据改变了，只
 
 ## 开工
 
-### Observer
+### 核心
+
+#### Observer
 
 `Observer` 监视数据的变化，需要完成数据劫持，前边已经介绍了 `Object.defineProperty()`，接下来正式开始定义 `Observer` 类：
 
@@ -190,7 +193,7 @@ const observe = data => {
 }
 ```
 
-### Watcher
+#### Watcher
 
 `Watcher` 是数据更新的订阅者，它会订阅数据更新，绑定视图更新的函数，数据更新后完成更新视图的动作。先看类定义：
 
@@ -245,7 +248,7 @@ class Watcher {
 
 `update()` 方法调用绑定的视图更新回调函数 `callback` 执行视图更新操作，该回调函数结构将在解析指令时定义。
 
-### Dep
+#### Dep
 
 `Dep` 是订阅者收集器，是数据更新的发布者。一个 `Dep` 实例对应一个数据（一个被观察的对象属性或一个被观察的对象），一个数据可以被多个订阅者订阅，所以 Dep 维护一个队列，来保存订阅者。`Dep` 定义如下：
 
@@ -285,7 +288,7 @@ class Dep {
 }
 ```
 
-### 添加 Observer、Watcher、Dep 三者联系
+#### 添加 Observer、Watcher、Dep 三者联系
 
 什么时候是收集订阅者（`Watcher`）的最佳时机呢？
 
@@ -409,7 +412,9 @@ depend = () => {
 
 上文中提到，创建 `Watcher` 对象会收集订阅者，但是在哪儿创建的 `Watcher` 对象呢？继续往下看。
 
-### Parser
+### 解析器
+
+#### Parser
 
 假如 `View` 中有如下一段片段：
 
@@ -543,6 +548,8 @@ parseText = node => {
 ```
 
 在文本中如果有插值表达式，则需要对插值表达式解析处理。由于文本中可能有多个插值表达式，所以采用正则加循环遍历每个插值表达式的方式来处理。
+
+#### 指令处理
 
 下面来完成对指令及插值表达式的解析处理，本库暂时支持 `x-html`、`x-text`、`x-model`、`x-on` 指令和 `{{ exp }}` 插值表达式的解析 。定义辅助对象来完成处理：
 
@@ -717,7 +724,7 @@ class ViewModel {
 
 创建 `ViewModel` 对象时接收选项参数，将选项中的 `el` 根元素、`data` 数据、`methods` 方法及 `options` 本身都挂载到 `ViewModel` 对象下，将 `data` 数据中各属性也直接挂载到 `ViewModel` 对象下，然后劫持数据，创建解析器对象，从根元素节点开始解析。
 
-## 成果
+### 阶段性成果
 
 以上我们就已经将这个自定义的简易 MVVM 库所需各个类创建完毕，接下来可以简单测试一下，`HTML` 片段：
 
@@ -766,3 +773,348 @@ const vm = new ViewModel({
 
 
 
+
+
+### 对数组的劫持处理
+
+目前虽然可以简单运行，但是对于数组的劫持仍然还未处理，下面来实现数组劫持处理。
+
+#### 为什么单独处理数组
+
+先来看看数组的劫持为什么要和普通对象的劫持分开来进行。有如下示例代码片段：
+
+```js
+const observe = data => {
+  Object.keys(data).forEach(key => {
+    observeProperty(data, key, data[key])
+  })
+}
+
+const observeProperty = (obj, key, value) => {
+  Object.defineProperty(obj, key, {
+    configurable: true,
+    enumerable: true,
+    get() {
+      console.log('获取数据')
+      return value
+    },
+    set(val) {
+      if (val === value) return
+      console.log('数据即将更新：', value, '=>', val)
+      value = val
+    }
+  })
+}
+
+const arr = [3, 'a', true]
+observe(arr)
+
+console.log('数组长度：', arr.length)
+console.log('arr[0]:', arr[0])
+arr[0] = 88
+```
+
+运行结果：
+
+```js
+数组长度： 3
+获取数据
+arr[0]: 3
+数据即将更新： 3 => 88
+```
+
+可以看到，当获取和修改数组元素值时，仍然能够监测拦截到数据的访问呀，这是为什么呢？这是因为数组也是对象的一种，数组元素的访问和对象的属性访问是一样的，`arr[0]` 同 `arr['0']` 是一个意思，通过标识符 `'0'` 作为属性名，来访问对象 `arr` 中对应属性的值。因此，在数组对象中可以定义一个名为 `'0'` 的属性，然后拦截对数组中第一个元素的访问，这就是我们能够看到上述运行结果的原因。
+
+接着再执行如下修改：
+
+```js
+arr[10] = 'test'
+```
+
+运行结果：
+
+```js
+
+```
+
+控制台上没有任何的输出，再看看这时的数组长度和刚修改的元素值：
+
+```js
+console.log('数组长度：', arr.length)
+console.log('arr[10]:', arr[10])
+```
+
+运行结果：
+
+```js
+数组长度： 11
+arr[10]: test
+```
+
+Why?
+
+当执行 `arr[10] = 'test'` 赋值语句时，是修改数组中下标编号为10(即第11个)的元素值，但数组初始长度为3，没有下标为10的元素，所以这时会自动向数组下标为10的位置添加一个新元素值。由于数组中元素是有序的，既然有了下标为10的元素，那么下标3-9也应该存在，只是还未给它们赋值，这些元素值为"空"而已，所以当获取数组长度时，显示为 `11`。
+
+即然已向下标10的元素处添加了元素值，所以 `arr[10]` 也就能够访问到该下标处的元素值，打印显示到控制台上。
+
+再仔细看看，有没有执行到 `getter/setter` 中的方法呢？如果有执行到，则控制台上还应该有：
+
+```js
+数据即将更新： undefined => 'test'
+获取数据
+```
+
+类似这样的打印结果，而实际上并没有这些打印显示。那说明在当为 `arr[10] = 'test'` 赋值和获取打印 `arr[10]` 时，并未被拦截处理。
+
+回过头去再看看，当执行 `observe(arr)` 时，彼时的 `arr` 数组中仅有三个元素，即仅对数组中初始的三个元素做了劫持，再新添加的元素并没有实现数据的劫持，所以不会有 `getter/setter` 中的执行过程。
+
+如果需要让新增的元素也能被劫持处理，则需要重新调用 `observe(arr)` 来劫持数组元素。很明显这样并不现实，因为在这个库中并没有暴露 `observe()` 方法供用户使用(入口是 `ViewModel` 类)。数组是应用开发中经常使用到的结构，可能会频繁的对数组执行添加或删除元素的操作，如果你认为预先劫持所有可能的整数下标，那么对于非数字下标属性的添加或删除又如何处理呢（当然这又是另一个主题的讨论了）？
+
+由此看来，像普通对象一样来对数组实现劫持是不现实的，所以需要重新处理数组的劫持。
+
+#### 继承并重写数组的方法
+
+数据劫持的主要目的，是当数据更新时，能够通知视图更新，既然通过数组元素直接赋值的方式劫持新增元素不现实，那么考虑通过数组的方法能不能实现呢。
+
+来看一个元素的添加方法，比如 `push()` 方法，如果能够重写该方法使其在被调用时通知数据更新，不就达到了要劫持的目的了吗。但是如果直接修改 `Array.prototype` 中的 `push()` 方法，那么应用中那些不需要被劫持的数组又如何处理呢，并且也并不建议直接修改 JavaScript 中的内置对象，这时就可以使用继承的方式来处理了。
+
+劫持数组是数组中元素变化时能够通知视图更新，那么那些不会改变原始数组的方法可以不用重写，只重写会改变原始数组的方法即可，这些方法有：`push/pop/unshift/shift/splice/sort/reverse`。
+
+继承有很多方式，原型链继承、组合继承、拷贝式继承、ES6中的 `class` 语法糖等，这里选择原型链继承来实现。
+
+```js
+// 为对象定义属性
+const def = (obj, key, value) => {
+  Object.defineProperty(obj, key, {
+    value,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  })
+}
+
+// 数组 Array.prototype 的引用
+const arrayProto = Array.prototype
+// 创建基于 Array.prototype 为原型的对象，
+// 被劫持的数组会修改原型链且以该对象为原型
+const arrayMethods = Object.create(arrayProto)
+
+// 变异方法（即调用这些方法会导致原始数组的修改）
+const methodsToPatch = [
+  'push',
+  'pop',
+  'unshift',
+  'shift',
+  'splice',
+  'sort',
+  'reverse'
+]
+
+// 重写变异方法
+methodsToPatch.forEach(method => {
+  // 原始方法
+  const original = arrayProto[method]
+  // 定义重写方法
+  def(arrayMethods, method, function(...args) {
+    // 在重写方法中调用原始实现数组元素操作
+    const value = original.apply(this, args)
+    // 如果是 push、unshift、splice 三个方法，可能会向数组中添加新元素
+    // 添加的新元素需要再次被劫持，标记出添加的新元素
+    let inserted
+    switch(method) {
+      case 'push':
+      case 'unshift':
+        inserted = args
+        break
+      case 'splice':
+        inserted = args.slice(2)
+    }
+    // 劫持新添加的元素
+    if (inserted) {
+      // TODO
+    }
+
+    // 通知数据更新
+    // TODO
+
+    // 返回原始方法调用返回的结果值
+    return value
+  })
+})
+```
+
+劫持数组中新添加的元素及要通知数据更新，都和 `Observer` 相关，接下来更新 `Observer`。
+
+#### 更新 Observer
+
+`Observer` 中只先处理了普通对象的劫持，所以现在添加对数组的劫持：
+
+```js
+  constructor(data) {
++   this.dep = new Dep() // Dep对象，用于收集订阅者和通知更新
++   // 为 data 数据添加 '__ob__' 属性指向当前对象
++   def(data, '__ob__', this)
++   // 判断数据的类型
++   if (Array.isArray(data)) { // 劫持数组
++     // 修改 data 数组的原型链，即 data.__proto__ = arrayMethods
++     Object.setPrototypeOf(data, arrayMethods)
++     // 数组各元素可能也是对象或数组，继续劫持
++     this.observeArray(data)
++   } else { // 劫持普通对象
+      this.walk(data)
++   }
+  }
+  
+  ......
+  
++ 
++ /**
++  * 劫持数组各元素
++  * @param arr 数组
++  */
++ observeArray(arr) {
++   for (let i = 0, l = arr.length; i < l; i++) {
++     observe[arr[i]]
++   }
++ }
+```
+
+由于数组劫持时，原始数组变化时会重新劫持新添加的元素和通知数据更新，所以添加第 2 行和第 4 行的代码片段，现在回头去实现重写数组方法中 `TODO` 部分内容：
+
+```js
+......
+
++   // 获取为数组对象注入的 __ob__ 属性值（即 Observer 对象）
++   const ob = this.__ob__
+    // 劫持新添加的元素
+    if (inserted) {
+-     // TODO
++     ob.observeArray(inserted)
+    }
+    // 通知数据更新
+-   // TODO
++   ob.dep.notify()
+
+......
+```
+
+下面可以测试一下，看是否能够处理数组的劫持：
+
+```html
+<!-- html片段 -->
+<div>
+  兴趣爱好有 {{ stu.hobbies.length }} 个
+</div>
+<button x-on:click="handleAddHobby">添加兴趣</button>
+```
+
+```js
+/* js 片段 */
+data: {
+  stu: {
+    hobbies: ['吃饭', '睡觉']
+  }
+},
+methods: {
+  handleAddHobby() {
+    this.stu.hobbies.push('打豆豆')
+  }
+}
+```
+
+运行效果：
+
+![数组劫持](/Users/isaac/Desktop/isaac-mvvm/_imgs/observe_array.gif)
+
+初始数组的长度能够正确获得，但当点击添加兴趣爱好时，视图并未更新。
+
+在重写的方法中打印一下看能不能调用到 `push()` 方法，从控制台的打印结果来看，是能够调用到的，那么问题就出现在订阅者是否真正订阅到数组的变化了，只有真正订阅到数组的变化，才能在调用 `ob.dep.depend()` 方法时通知订阅者更新视图。
+
+#### 完善
+
+分析一下 `Observer`，当劫持到 `stu.hobbies` 属性时，`observeProperty()` 方法中：
+
+```js
+// 属性值也可能为对象，继续劫持
+observe(value) // observe(['吃饭', '睡觉'])
+// 创建 Dep 对象
+const dep = new Dep()
+Object.defineProperty(obj, key, {
+  ......,
+  get() {
+    // 收集订阅者
+    if (Dep.target) {
+      dep.depend()
+    }
+    // 有预定义的 getter，则调用 getter 方法获得返回值，否则使用已有属性值
+    ......
+  },
+  set(val) {
+    ......
+    // 设置新值可能为对象，劫持
+    observe(value)
+    // 通知更新
+    dep.notify()
+  }
+})
+```
+
+由于 `stu.hobbies` 属性的值为 `['吃饭', '睡觉']`，是数组结构，会继续劫持。然后创建 `Dep` 对象，该对象处于闭包结构内，能够收集订阅了 `stu.hobbies` 数据更新的订阅者，但订阅者仅会在修改 `stu.hobbies` 属性本身时才会接收到通知去更新视图，验证：
+
+```js
+handleAddHobby() {
+  this.stu.hobbies = '测试是否修改stu.hobbies本身'
+}
+```
+
+运行效果：
+
+![修改属性本身](/Users/isaac/Desktop/isaac-mvvm/_imgs/observe_arr_prop.gif)
+
+视图更新了，数字由之前数组的长度 2 更新为字符串的长度 19，由此可见当前确实是当修改 `stu.hobbies` 属性本身时才会更新视图，那如何使得修改 stu.hobbies 属性值(即数组)时也能更新视图呢？
+
+在 `Observer` 中，我们为每个 `Observer` 都添加了 `dep` 属性，为劫持的对象添加了 `__ob__` 属性，当调用到数组重写后的 `push` 方法时，通过被劫持的数组对象本身拿到 `__ob__` (即关联的 `Observer` 对象)，然后调用到 `dep` 来获取 `Dep` 对象。很明显，`push()` 方法中的这个 `dep` 对象和 `observerProperty()` 方法中的 `dep` 不是同一个对象，所以订阅者并未订阅到对数组本身的修改。
+
+再看看 `observe()` 方法，其调用后的返回值为 `Observer` 对象。`observe(['吃饭', '睡觉'])` 调用后返回的对象与劫持该对象时绑定的 `__ob__` 是同一个对象，那么利用 `observe(['吃饭', '睡觉'])` 返回对象的 `dep` 来收集订阅者是否可行呢？验证：
+
+```js
+// 属性值也可能为对象，继续劫持
+let childOb = observe(value)
+// 创建 Dep 对象
+const dep = new Dep()
+Object.defineProperty(obj, key, {
+  ......,
+  get() {
+    // 收集订阅者
+    if (Dep.target) {
+      dep.depend()
+      if (childOb) {
+        childOb.dep.depend()
+      }
+    }
+    // 有预定义的 getter，则调用 getter 方法获得返回值，否则使用已有属性值
+    ......
+  },
+  set(val) {
+    ......
+    // 设置新值可能为对象，劫持
+    childOb = observe(value)
+    // 通知更新
+    dep.notify()
+  }
+})
+```
+
+再次运行，效果：
+
+![完善效果](/Users/isaac/Desktop/isaac-mvvm/_imgs/observer_array_success.gif)
+
+现在看，当调用数组的 `push` 方法添加元素时，就能够拦截到数组的更新并通知更新视图了。
+
+至此，自定义 MVVM 库中对数组的劫持就实现了。当然也还可能存在未测试到的 `bug`，留待后续解决。
+
+## 总结
+
+通过自定义 MVVM 库，不说完全明白 Vue 的所有设计思想，但对于如何利用数据劫持达到响应式更新视图的原理还是有了比较深刻的认识，同时对自身的原生 JavaScript 能力也是一次锻炼。其实网络上有非常多写得很好的关于 MVVM 原理及实现的文章，但可能真正的自己再重复"造轮子"之后理解会更深刻吧。
+
+当然除了使用 `Object.defineProperty()` 的方式来劫持数据外，也可考虑使用 `Proxy` ，留作下一个专题研究吧。
