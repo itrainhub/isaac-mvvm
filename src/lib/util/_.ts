@@ -60,3 +60,8 @@ export const cloneDeep = (data: any): any => {
 
   return result
 }
+
+/**
+ * 空函数
+ */
+export const noop = () => {}

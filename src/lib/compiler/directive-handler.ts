@@ -1,4 +1,4 @@
-import { capitalize, isEmpty } from "../util"
+import { capitalize, isEmpty, parseExpression, createFunction, setValue } from "../util"
 import Watcher from "../core/watcher"
 
 export default {
@@ -12,10 +12,11 @@ export default {
   dispatch(node: Node, vm: ViewModel, directive: string, expression: string): void {
     // 获取处理函数名
     const fn = this[`process${capitalize(directive)}`]
+    const { value, expOrFn } = this.genValueAndExpOrFn(vm, expression)
     // 调用处理函数
-    fn && fn(node, this.getVmValue(vm, expression))
+    fn && fn(node, value)
     // 创建 Watcher 订阅者对象，绑定数据更新后更新视图函数
-    new Watcher(vm, expression, (value: any, oldValue: any) => {
+    new Watcher(vm, expOrFn, (value: any, oldValue: any) => {
       fn && fn(node, value, oldValue)
     })
     // 文本框双向绑定处理
@@ -25,33 +26,26 @@ export default {
   },
 
   /**
-   * 获取挂载在 vm 上的属性值
-   * @param vm View-Model 对象实例
-   * @param props 待获取值的属性，如：'stu.name.middle'
+   * 根据表达式获取对应数据值，如果表达式不是简单的.分隔开的字符串，
+   * 则将表达式字符串转换为获取表达式运算结果的函数
+   * @param vm ViewModel对象实例
+   * @param expression 表达式字符串内容
    */
-  getVmValue(vm: ViewModel, props: string): any {
-    props.split('.').forEach(key => {
-      vm = vm[key.trim()]
-    })
-    return vm
-  },
-
-  /**
-   * 设置挂载在 vm 上的属性值
-   * @param vm vm
-   * @param props 属性名
-   * @param value 属性值
-   */
-  setVmValue(vm: ViewModel, props: string, value: any): void {
-    const exps = props.split('.')
-    const maxIndex = exps.length - 1
-    exps.forEach((key, index) => {
-      if (index < maxIndex) {
-        vm = vm[key]
-        return
-      }
-      vm[key] = value
-    })
+  genValueAndExpOrFn(vm: ViewModel, expression: string): {value: any, expOrFn: string | Function} {
+    const getter = parseExpression(expression)
+    let value: any, expOrFn: string | Function
+    if (typeof getter === 'function') {
+      value = getter.call(vm, vm)
+      expOrFn = expression
+    } else {
+      const obj = { ...vm.$data, ...vm.$options.methods }
+      expOrFn = createFunction(obj, expression)
+      value = expOrFn(obj)
+    }
+    return {
+      value,
+      expOrFn
+    }
   },
 
   /**
@@ -86,14 +80,14 @@ export default {
     expression: string,
     index: number
   ): void {
-    // 获取插值表达式的值，保存在数组中，便于组装数据
-    let value = this.getVmValue(vm, expression)
+    const { value, expOrFn } = this.genValueAndExpOrFn(vm, expression)
+    // 将插值表达式的值，保存在数组中，便于组装数据
     const { mustaches } = original
     mustaches[index] = isEmpty(value) ? '' : value
     // 组装文本，设置节点值
     this.handleMustachText(node, original)
     // 创建 Watcher 订阅者对象，绑定数据更新后更新视图函数
-    new Watcher(vm, expression, (value: any, oldValue: any) => {
+    new Watcher(vm, expOrFn, (value: any, oldValue: any) => {
       mustaches[index] = isEmpty(value) ? '' : value
       this.handleMustachText(node, original)
     })
@@ -130,12 +124,12 @@ export default {
    * @param expression 表达式
    */
   handleModel(node: HTMLInputElement, vm: ViewModel, expression: string) {
-    let val: any = this.getVmValue(vm, expression)
+    let { value } = this.genValueAndExpOrFn(vm, expression)
     node.addEventListener('input', e => {
-      const value = (<HTMLInputElement>(e.target)).value
+      const val = (<HTMLInputElement>(e.target)).value
       if (val === value) return
-      this.setVmValue(vm, expression, value)
-      val = value
+      setValue(vm, expression, val)
+      value = val
     }, false)
   },
 

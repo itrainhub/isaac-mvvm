@@ -1,4 +1,5 @@
 import Dep from "./dep"
+import { parseExpression, noop } from '../util'
 
 /**
  * 订阅者，订阅数据的更新，数据更新后完成更新视图
@@ -6,24 +7,35 @@ import Dep from "./dep"
 export default class Watcher {
   vm: ViewModel
   callback: Function
-  expression: string
   depIds: object
   value: any
+  getter: Function
 
-  constructor(vm: ViewModel, expression: string, callback: Function) {
+  constructor(vm: ViewModel, expOrFn: string | Function, callback: Function) {
     this.vm = vm // ViewModel 对象，挂载有数据
-    this.expression = expression // 指令表达式或插值表达式
     this.callback = callback // 绑定的视图更新函数
     this.depIds = {} // 保存已被哪些 Dep 收集过
-    this.value = this.getValue() // 获取订阅数据的初始值
+    // 如果表达式中仅有 . 分隔，则解析获取属性值比较方便，但如果表达式中还有其它符号分隔，
+    // 比如 {{ arr[2].num * arr[2].price }} 之类的表达式，则需要通过传递函数的方式来
+    // 计算表达式的值，所以 expOrFn 是类似 'stu.name' 字符串类型的表达式或是函数
+    if (typeof expOrFn === 'function') {
+      this.getter = expOrFn
+    } else {
+      this.getter = parseExpression(expOrFn)
+      if (!this.getter) {
+        this.getter = noop
+      }
+    }
+    this.value = this.get() // 获取订阅数据的初始值
   }
-  
+
   /**
-   * 获取订阅数据当前值，每次需要收集订阅者
+   * 获取订阅数据当前值，需要收集订阅者，所以设置 Dep.target，使用完毕后置空
    */
-  getValue(): any {
+  get(): any {
+    const { vm } = this
     Dep.target = this
-    const value = this.get()
+    const value = this.getter.call(vm, vm)
     Dep.target = null
     return value
   }
@@ -33,7 +45,7 @@ export default class Watcher {
    */
   update(): void {
     // 更新后的数据
-    const newValue = this.getValue()
+    const newValue = this.get()
     // 更新前的数据
     const oldValue = this.value
     // 如果更新前后数据一致，说明未更新数据，不需要更新视图
@@ -54,19 +66,5 @@ export default class Watcher {
       dep.addSub(this)
       this.depIds[dep.id] = dep
     }
-  }
-
-  /**
-   * 获取表达式表示的属性值
-   */
-  get(): any {
-    let vm = this.vm
-    const exps = this.expression.split('.')
-    for (let i = 0, l = exps.length; i < l; i++) {
-      if (!vm) return
-      vm = vm[exps[i]]
-    }
-
-    return vm
   }
 }

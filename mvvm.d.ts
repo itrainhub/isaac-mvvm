@@ -12,12 +12,11 @@ interface ViewModel {
 
 interface Watcher {
   vm: ViewModel,
-  expression: string,
   callback: Function,
   depIds: object,
+  getter: Function,
   value: any,
   get: Function,
-  getValue: Function,
   addDep: Function,
   update: Function
 }
