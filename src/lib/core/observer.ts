@@ -44,9 +44,9 @@ const observeProperty = (obj: object, key: string, value: any): void => {
         dep.depend()
         if (childOb) {
           childOb.dep.depend()
-          if (Array.isArray(val)) {
-            dependArray(val)
-          }
+          // if (Array.isArray(val)) {
+          //   dependArray(val)
+          // }
         }
       }
       return val
@@ -83,19 +83,24 @@ const dependArray = (value: any[]): void => {
  */
 class Observer {
   // 观察的数据，对象或数组
-  value: object | Array<any>
+  data: object | Array<any>
   // Dep 对象：订阅者收集器
   dep: Dep
 
-  constructor(value: object | Array<any>) {
-    this.value = value
+  constructor(data: object | Array<any>) {
+    this.data = data
+    // Dep对象，用于收集订阅者和通知更新
     this.dep = new Dep()
-    def(value, '__ob__', this)
-    if (Array.isArray(value)) {
-      Object.setPrototypeOf(value, arrayMethods)
-      this.observeArray(value)
-    } else {
-      this.walk(value)
+    // 为 data 数据添加 '__ob__' 属性指向当前对象
+    def(data, '__ob__', this)
+    // 判断数据的类型
+    if (Array.isArray(data)) { // 劫持数组
+      // 修改 data 数组的原型链，即 data.__proto__ = arrayMethods
+      Object.setPrototypeOf(data, arrayMethods)
+      // 数组各元素可能也是对象或数组，继续劫持
+      this.observeArray(data)
+    } else { // 劫持普通对象
+      this.walk(data)
     }
   }
 

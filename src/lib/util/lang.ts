@@ -35,17 +35,12 @@ export const parseExpression = (expression: string): any => {
 }
 
 /**
- * 生成函数，用于获取表达式的结果值，当表达式不是以 . 分割调用的对象属性时来调用该方法，比如：{{ stu['name'] }}、{{ 3 + 2 - 5 }}
+ * 生成函数，用于获取表达式的结果值，当表达式不是以 . 分割调用的对象属性时来调用该方法，
+ * 比如：{{ stu['name'] }}、{{ 3 + 2 - 5 }}
  * @param vm ViewModel对象实例
  * @param exp 表达式
  */
 export const createFunction = (obj: object, exp: string) => {
-  console.log('exp: ', exp)
-  // const data = {
-  //   ...obj.$data,
-  //   ...obj.$options.methods
-  // }
-  
   const param = `{${Object.keys(obj).join(', ')}}`
   return new Function(param, `return ${exp}`)
 }
@@ -57,9 +52,5 @@ export const createFunction = (obj: object, exp: string) => {
  * @param value 值
  */
 export const setValue = (obj: object, exp: string, value: any): void => {
-  try {
-    new Function('value', `return this.${exp} = value`).call(obj, value)
-  } catch (error) {
-    console.log('lang.js - setValue() - error: ', error)
-  }
+  new Function('value', `return this.${exp} = value`).call(obj, value)
 }

@@ -12,6 +12,7 @@ export default {
   dispatch(node: Node, vm: ViewModel, directive: string, expression: string): void {
     // 获取处理函数名
     const fn = this[`process${capitalize(directive)}`]
+    // 获取表达式的值，如果是复杂表达式，创建能够获取复杂表达式值的函数
     const { value, expOrFn } = this.genValueAndExpOrFn(vm, expression)
     // 调用处理函数
     fn && fn(node, value)
@@ -33,14 +34,14 @@ export default {
    */
   genValueAndExpOrFn(vm: ViewModel, expression: string): {value: any, expOrFn: string | Function} {
     const getter = parseExpression(expression)
-    let value: any, expOrFn: string | Function
-    if (typeof getter === 'function') {
-      value = getter.call(vm, vm)
+    let value: any
+    let expOrFn: string | Function
+    if (typeof getter === 'function') { // 简单表达式
       expOrFn = expression
-    } else {
-      const obj = { ...vm.$data, ...vm.$options.methods }
-      expOrFn = createFunction(obj, expression)
-      value = expOrFn(obj)
+      value = getter.call(vm, vm)
+    } else { // 复杂表达式
+      expOrFn = createFunction(vm, expression)
+      value = expOrFn.call(vm, vm)
     }
     return {
       value,
@@ -142,7 +143,7 @@ export default {
    */
   processEvent(node: Element, vm: ViewModel, directive: string, callbackExp: string) {
     const eventType = directive.slice(3)
-    const callback = vm.$options.methods[callbackExp]
+    const callback = this.genValueAndExpOrFn(vm, callbackExp).value
     if (eventType && callback) {
       node.addEventListener(eventType, callback.bind(vm), false)
     }
