@@ -974,7 +974,7 @@ methodsToPatch.forEach(method => {
 +  */
 + observeArray(arr) {
 +   for (let i = 0, l = arr.length; i < l; i++) {
-+     observe[arr[i]]
++     observe(arr[i])
 +   }
 + }
 ```
