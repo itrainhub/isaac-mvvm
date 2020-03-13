@@ -1113,6 +1113,306 @@ Object.defineProperty(obj, key, {
 
 至此，自定义 MVVM 库中对数组的劫持就实现了。当然也还可能存在未测试到的 `bug`，留待后续解决。
 
+## 扩展优化
+
+### 复杂表达式解析
+
+在对指令表达式和插值表达式解析时，目前还只支持类似 `stu.name` 这种结构的字符串解析，即以 `.` 分隔对象属性调用的表达式。如果有类似 `stu['name']` 、`stu.hobbies[0]` 或 `prod.price * prod.amount` 这样的复杂表达式，甚至于函数调用的表达式，如 `handleClick(stu.name)`，还不能解析并获取表达式运算结果，下面来优化完善对表达式的解析支持。
+
+对以 `.` 分隔对象属性调用的表达式解析最简单，以 `.` 分割字符串后再迭代数组中每个属性名称，从根对象中一层层查找属性值即可，但复杂的表达式中还包含其它符号，如 `()`、`''`、`[]` 甚至是 `() => {}` 等，如果还是按照字符串分割的方式来处理，那什么时候是属性调用，什么时候是算术运算，什么时候又是函数调用就不好区分了。
+
+此时可采取一个比较取巧的办法，就是将表达式的内容转换到一个函数内部去执行，通过函数的执行返回表达式的结果。示例：
+
+```js
+// 有表达式内容为 data['stu'].hobbies[0] 需要解析
+const data = {
+  stu: {
+    hobbies: ['足球', '篮球', '乒乓球']
+  }
+}
+let expression = 'data["stu"].hobbies[0]'
+const fn = new Function(`return ${expression}`)
+console.log('解析结果：', fn())
+```
+
+运行结果：
+
+```js
+解析结果： 足球
+```
+
+从运行结果中看到，可以正确获取到对应对象属性的值。
+
+再来一个复杂点的示例，解析表达式 `prod['price'].original * prod.discount * prod['amount'] + freight * 1.2` 的运算结果， `prod` 和 `freight` 为 `data` 对象中的属性：
+
+```js
+// 有表达式内容为：prod['price'].original * prod.discount * prod['amount'] + freight * 1.2
+const data = {
+  prod: {
+    price: {
+      original: 99,
+      cost: 9.9
+    },
+    discount: 0.7,
+    amount: 8
+  },
+  freight: 10
+}
+```
+
+要解析这个表达式，就必须从 `data` 中获取到 `prod` 和 `freight` 的属性值，但又不仅仅是简单的在 `prod` 和 `freight` 前加个 `data.`，如果表达式更复杂一些（比如表达式中还出现了类似 `new Date()` 这样的内容），那么什么时候加 `data.` 什么时候又不加，就又不好判断了。
+
+这时如果有这样一个函数：
+
+```js
+const fn = ({prod, freight}) => {
+  return prod['price'].original * prod.discount * prod['amount'] + freight * 1.2
+}
+```
+
+`fn` 函数需要一个对象参数，解构对象中的 `prod` 与 `freight` 属性以供函数体内部使用，那么当调用 `fn` 函数时，传递 `data` 对象作为实际参数即可返回表达式运算结果。
+
+由于 `data` 对象的结构和表达式内容每次解析时都可能不一样，那么接下来要做的就是动态生成这样的函数了：
+
+```js
+const createFunction = (data, expression) => {
+  // 获取 data 对象中所有属性名称，作为构建返回函数的参数部分
+  // 类似 {prod, freight} 这样的结构
+  const params = `{${Object.keys(data).join(', ')}}`
+  // 返回函数的主体
+  const fnBody = `return ${expression}`
+  // 创建函数并返回
+  return new Function(params, fnBody)
+}
+```
+
+完整示例：
+
+```js
+// 有表达式内容为：prod['price'].original * prod.discount * prod['amount'] + freight * 1.2
+const data = {
+  prod: {
+    price: {
+      original: 99,
+      cost: 9.9
+    },
+    discount: 0.7,
+    amount: 8
+  },
+  freight: 10
+}
+// 创建函数
+const createFunction = (data, expression) => {
+  // 获取 data 对象中所有属性名称，作为构建返回函数的参数部分
+  // 类似 {prod, freight} 这样的结构
+  const params = `{${Object.keys(data).join(', ')}}`
+  // 返回函数的主体
+  const fnBody = `return ${expression}`
+  // 创建函数并返回
+  return new Function(params, fnBody)
+}
+
+const expression = `prod['price'].original * prod.discount * prod['amount'] + freight * 1.2`
+const fn = createFunction(data, expression)
+console.log('表达式运算结果：', fn(data))
+```
+
+运行结果：
+
+```js
+表达式运算结果： 566.4
+```
+
+本 MVVMV 库解析表达式主要是在 `Parser` 和 `Watcher` 中使用到，接下来更新它们：
+
+**Watcher**
+
+`Watcher` 中原本只处理了简单表达式，前边已经分析过，如果是复杂的表达式，不适合用字符串分割的方式来处理，可以提供一个函数来执行表达式的运算。构造函数重构如下：
+
+```js
+constructor(vm, expOrFn, callback) {
+  this.vm = vm // ViewModel 对象，挂载有数据
+  this.callback = callback // 绑定的视图更新函数
+  this.depIds = {} // 保存已被哪些 Dep 收集过
+  // expOrFn: expression or function，简单表达式，使用字符串传递即可
+  // 如果是复杂表达式，则传递函数，来获取表达式运算结果值
+  if (typeof expOrFn === 'function') { // 函数
+    this.getter = expOrFn
+  } else { // 字符串
+    this.getter = parsePath(expOrFn) // 解析字符串，生成获取表达式值的函数
+    if (!this.getter) {
+      this.getter = noop // 空函数
+    }
+  }
+  this.value = this.get() // 获取订阅数据的初始值
+}
+```
+
+`parsePath(param)` 函数定义如下：
+
+```js
+const parsePath = expression => {
+  // 如果字符串中包含字母、数字、_、$、.之外的符号，则不是简单表达式
+  if (/[^\w.$]/.test(expression)) return
+
+  const exps = expression.split('.')
+  // 返回用于获取 obj 对象中 expression 表达式属性值的函数
+  return obj => {
+    for (let i = 0, l = exps.length; i < l; i++) {
+      if (!obj) return
+      obj = obj[exps[i]]
+    }
+
+    return obj
+  }
+}
+```
+
+将原 `Watcher` 类中 `get()` 方法删除，将 `getValue()` 方法修改为 `get()` 方法：
+
+```js
+/**
+ * 获取订阅数据当前值，每次需要收集订阅者
+ */
+get() {
+  Dep.target = this
+  const value = this.getter.call(this.vm, this.vm)
+  Dep.target = null
+  return value
+}
+```
+
+**Parser**
+
+指令处理时，视图初始化显示需要解析表达式，创建 `Watcher` 对象（绑定 `Watcher` 订阅者的视图更新函数）时需要判断表达式是简单还是复杂表达式以传递不同类型参数，修改如下：
+
+```js
+// 如果是复杂表达式，需要创建获取表达式值的函数
+// 将表达式的计算结果值与生成的函数返回
+genValueAndExpOrFn(vm, expression) {
+  const getter = parsePath(expression)
+  let expOrFn, value
+  if (typeof getter === 'function') { // 以 '.' 分割字符串，简单表达式
+    expOrFn = expression
+    value = getter.call(vm, vm)
+  } else { // 复杂表达式
+    expOrFn = createFunction(vm, expression)
+    value = expOrFn.call(vm, vm)
+  }
+  return {
+    value,
+    expOrFn
+  }
+},
+// 分派普通指令
+dispatch(node, vm, directive, expression) {
+	......
+  const { value, expOrFn } = this.genValueAndExpOrFn(vm, expression)
+  fn && fn(node, value)
+  new Watcher(vm, expOrFn, value => {
+    fn && fn(node, value)
+  })
+	......
+},
+// 处理插值表达式
+processMustache(node, original, vm, expression, index) {
+  const { value, expOrFn } = this.genValueAndExpOrFn(vm, expression)
+  ......
+  new Watcher(vm, expOrFn, (value, oldValue) => {
+    mustaches[index] = typeof value === 'undefined' ? '' : value
+    this.handleMustachText(node, original)
+  })
+}
+```
+
+**ViewModel**
+
+在表达式中还可能会调用到 `ViewModel` 选项中的方法来实现功能，如表达式内容为：`'reverseMsg()'`，在方法中又可能会调用到 `data` 中的数据实现业务，所以将 `ViewModel` 选项中的方法注入 `ViewModel` 对象本身，并且修改每个方法体内 `this` 的指向：
+
+```js
+// 向对象中注入方法
+const _injectMethod = (obj, method) => {
+  Object.defineProperty(obj, method, {
+    value: (...args) => {
+      const fn = obj.$options.methods[method]
+      if (typeof fn === 'function') {
+        return fn.apply(obj, args)
+      }
+    },
+    writable: false,
+    enumerable: true,
+    configurable: false
+  })
+}
+
+class ViewModel {
+  constructor(options) {
+    ......
+    Object.keys(methods).forEach(method => {
+      _injectMethod(this, method)
+    })
+    ......
+  }
+}
+```
+
+**效果测试**
+
+```html
+<div id="root">
+  <div>
+    第一件商品
+    <br>
+    编号: {{ cart[0].id }},
+    标题: {{ cart[0].title }},
+    原价: {{ (cart[0].price.original).toFixed(2) }},
+    折扣: {{ cart[0].discount }}
+    <br>
+    购物车商品总价格: {{ calcPayment().toFixed(2) }}
+  </div>
+</div>
+<script>
+  new ViewModel({
+    el: '#root',
+    data: {
+      cart: [
+        {
+          id: 1,
+          title: 'prod-1',
+          price: {
+            original: 99,
+            cost: 9.9
+          },
+          discount: 0.8,
+          amount: 1
+        },
+        {
+          id: 2,
+          title: 'prod-2',
+          price: {
+            original: 9.9,
+            cost: 6.5
+          },
+          discount: 1,
+          amount: 10
+        }
+      ]
+    },
+    methods: {
+      calcPayment() {
+        return this.cart.reduce((sum, prod) => (
+          sum += prod.price.original * prod.discount * prod.amount
+        ), 0)
+      }
+    }
+  })
+</script>
+```
+
+运行效果：
+
+![复杂表达式测试效果](./_imgs/expression.png)
+
 ## 总结
 
 通过自定义 MVVM 库，不说完全明白 Vue 的所有设计思想，但对于如何利用数据劫持达到响应式更新视图的原理还是有了比较深刻的认识，同时对自身的原生 JavaScript 能力也是一次锻炼。其实网络上有非常多写得很好的关于 MVVM 原理及实现的文章，但可能真正的自己再重复"造轮子"之后理解会更深刻吧。
