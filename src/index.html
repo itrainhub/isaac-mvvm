@@ -8,18 +8,33 @@
 <body>
   测试
   <div id="root">
-    {{ msg }}
+    简单表达式：{{ msg }}
     <br>
     {{ success }}
+    <button x-on:click="handleChangeMsg">修改msg</button>
     <br>
-    <input type="text" x-model="msg" />
+    复杂表达式：{{ 3 + 2 - 5 * 0 }}  学生第二个爱好： {{ stu.hobbies[1] }}
+    <br>
+    <input type="text" x-model="stu['name']['middle']" />
     <div>
       学生姓名：{{ stu.name.middle }} {{ stu.name.first }}，年龄：{{ stu.age }}
     </div>
-    <button x-on:click="handle">按钮</button>
     <div>
-      数组长度：{{ hobbies.length }}
+      兴趣爱好数组长度：{{ stu.hobbies.length }}
       <button x-on:click="handleAddData">添加元素</button>
+    </div>
+    <div>
+      第一件商品
+      <br>
+      编号: {{ cart[0].id }},
+      标题: {{ cart[0].title }},
+      原价: {{ (cart[0].price.original).toFixed(2) }},
+      折扣: {{ cart[0].discount }}
+      数量: {{ cart[0].amount }}
+      <br>
+      购物车商品总价格: {{ calcPayment().toFixed(2) }}
+      <br>
+      <button x-on:click="() => {handleModify(0)}">修改第1件商品价格</button>
     </div>
   </div>
 </body>
